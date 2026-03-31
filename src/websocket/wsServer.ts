@@ -1,4 +1,3 @@
-// src/websocket/wsServer.ts
 import { WebSocketServer, WebSocket } from 'ws';
 import { IncomingMessage } from 'http';
 
@@ -12,7 +11,7 @@ class RackRushWS {
 
   constructor(server: any) {
     this.wss = new WebSocketServer({ server, path: '/ws' });
-    this.clients = new Map(); // userId -> Set of matching WS connections
+    this.clients = new Map();
 
     this.wss.on('connection', (ws: ExtendedWebSocket, req: IncomingMessage) => {
       console.log('New WS connection');
@@ -42,7 +41,6 @@ class RackRushWS {
     });
   }
 
-  // Send message to a specific user
   sendToUser(userId: number | string, data: any) {
     const userClients = this.clients.get(Number(userId));
     if (userClients) {
@@ -53,7 +51,6 @@ class RackRushWS {
     }
   }
 
-  // Simple broadcast based on userId property in message
   broadcast(data: any) {
     if (data.userId) {
       this.sendToUser(data.userId, data);
