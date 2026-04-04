@@ -1,0 +1,27 @@
+# IDE files
+.idea/
+.vscode/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Project-specific ignores
+MTAA_Projekt_2026.pdf
+Mobilná aplikácia.pdf
+model.png
+figma_design/
+
+# Sub-projects
+rackrush_frontend/build/
+rackrush_frontend/.dart_tool/
+rackrush_frontend/.flutter-plugins
+rackrush_frontend/.flutter-plugins-dependencies
+rackrush_frontend/.metadata
+rackrush_frontend/pubspec.lock
+
+rackrush_backend/node_modules/
+rackrush_backend/.env
+rackrush_backend/dist/
+rackrush_backend/uploads/
