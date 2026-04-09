@@ -1,9 +1,5 @@
 -- RackRush Database Schema
 -- Run with: npx ts-node db/migrate.ts
--- Poznamka:
--- Schema uz NIE JE defaultne destruktivna.
--- Ak potrebujes reset databazy, pouzi:
--- RESET_DB=true npm run migrate
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- ENUMS

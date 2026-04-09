@@ -182,15 +182,19 @@ router.put('/orders/:id/status', async (req: Request, res: Response) => {
     const result = await pool.query('UPDATE orders SET status = $1 WHERE id = $2 RETURNING *', [status, req.params.id]);
     if (!result.rows.length) return res.status(404).json({ error: 'Order not found' });
     
-    // Poslanie realtime eventu cez WebSocket
+    // IRL pravidlo:
+    // 1) Ak je user online vo WS, posleme in-app realtime event
+    // 2) Ak user online nie je, posleme push notifikaciu
     const order = result.rows[0];
     const io = req.app.get('wss');
+    let userOnline = false;
     if (io) {
-      io.broadcast({ type: 'order_status_update', orderId: order.id, status: order.status, userId: order.user_id });
+      userOnline = io.hasActiveConnection(order.user_id);
+      io.sendToUser(order.user_id, { type: 'order_status_update', orderId: order.id, status: order.status, userId: order.user_id });
     }
 
-    // Server trigger push notifikacie pri zmene stavu objednavky
-    if (order.user_id) {
+    // Push posielame iba ked user momentalne nie je aktivny vo WS
+    if (order.user_id && !userOnline) {
       await sendPushToUser(Number(order.user_id), {
         title: 'Order status updated',
         body: `Your order #${order.id} is now ${order.status}`,
@@ -228,19 +232,25 @@ router.post('/points', async (req: Request, res: Response) => {
   try {
     const result = await pool.query('UPDATE loyalty_cards SET current_points = current_points + $1 WHERE user_id = $2 RETURNING current_points', [points, user_id]);
     
-    // Poslanie realtime eventu cez WebSocket
+    // IRL pravidlo:
+    // 1) Ak je user online vo WS, posleme in-app realtime event
+    // 2) Ak user online nie je, posleme push notifikaciu
     const io = req.app.get('wss');
+    let userOnline = false;
     if (io) {
-      io.broadcast({ type: 'points_updated', userId: user_id, currentPoints: result.rows[0].current_points, added: points });
+      userOnline = io.hasActiveConnection(user_id);
+      io.sendToUser(user_id, { type: 'points_updated', userId: user_id, currentPoints: result.rows[0].current_points, added: points });
     }
 
-    // Server trigger push notifikacie pri zmene bodov
-    await sendPushToUser(Number(user_id), {
-      title: 'RackPoints updated',
-      body: `You received ${points} points`,
-      deepLink: 'rackrush://loyalty-card',
-      data: { type: 'points_updated', added: String(points) },
-    });
+    // Push posielame iba ked user momentalne nie je aktivny vo WS
+    if (!userOnline) {
+      await sendPushToUser(Number(user_id), {
+        title: 'RackPoints updated',
+        body: `You received ${points} points`,
+        deepLink: 'rackrush://loyalty-card',
+        data: { type: 'points_updated', added: String(points) },
+      });
+    }
 
     res.json({ message: 'Points added', current_points: result.rows[0].current_points });
   } catch (err) { res.status(500).json({ error: 'Server error' } as ErrorResponseDTO); }

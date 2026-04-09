@@ -9,8 +9,19 @@ import crypto from 'crypto';
 import pool from '../config/db';
 import auth from '../middleware/auth';
 
-const signAccess  = (payload: any) => jwt.sign(payload, process.env.JWT_SECRET as string,         { expiresIn: (process.env.JWT_EXPIRES_IN         || '1h') as any });
-const signRefresh = (payload: any) => jwt.sign(payload, process.env.JWT_REFRESH_SECRET as string,  { expiresIn: (process.env.JWT_REFRESH_EXPIRES_IN || '7d') as any });
+// Jednoduchsie ako one-liner: jasna funkcia pre access token
+function signAccess(payload: any) {
+  const secret = process.env.JWT_SECRET as string;
+  const expiresIn = (process.env.JWT_EXPIRES_IN || '1h') as any;
+  return jwt.sign(payload, secret, { expiresIn });
+}
+
+// Jednoduchsie ako one-liner: jasna funkcia pre refresh token
+function signRefresh(payload: any) {
+  const secret = process.env.JWT_REFRESH_SECRET as string;
+  const expiresIn = (process.env.JWT_REFRESH_EXPIRES_IN || '7d') as any;
+  return jwt.sign(payload, secret, { expiresIn });
+}
 
 // Pomocna funkcia na hash refresh tokenu
 function hashRefreshToken(token: string): string {
@@ -86,7 +97,11 @@ router.post('/register', async (req: Request, res: Response) => {
     let role = 'user';
     if (date_of_birth) {
       const age = Math.floor((new Date().getTime() - new Date(date_of_birth).getTime()) / (365.25 * 24 * 3600 * 1000));
-      role = age < 18 ? 'junior' : 'senior';
+      if (age < 18) {
+        role = 'junior';
+      } else {
+        role = 'senior';
+      }
     }
 
     const result = await pool.query(

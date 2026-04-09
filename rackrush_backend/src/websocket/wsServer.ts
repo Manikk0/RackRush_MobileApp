@@ -30,14 +30,19 @@ class RackRushWS {
           // userId sa berie z tokenu, nie zo vstupu klienta
           if (data.type === 'auth' && data.token) {
             const decoded = jwt.verify(data.token, process.env.JWT_SECRET as string) as any;
-            const userId = Number(decoded?.id);
+            const userId = Number(decoded && decoded.id);
             if (!userId) {
               ws.send(JSON.stringify({ type: 'auth_error', message: 'Neplatny token payload' }));
               return;
             }
 
-            if (!this.clients.has(userId)) this.clients.set(userId, new Set());
-            this.clients.get(userId)!.add(ws);
+            if (!this.clients.has(userId)) {
+              this.clients.set(userId, new Set());
+            }
+            const clientSet = this.clients.get(userId);
+            if (clientSet) {
+              clientSet.add(ws);
+            }
             ws.userId = userId;
             ws.send(JSON.stringify({ type: 'auth_success' }));
             return;
@@ -52,8 +57,13 @@ class RackRushWS {
           // Klient si zapne realtime odber vytazenosti konkretnej predajne
           if (data.type === 'store_subscribe' && data.storeId) {
             const storeId = Number(data.storeId);
-            if (!this.storeSubscriptions.has(storeId)) this.storeSubscriptions.set(storeId, new Set());
-            this.storeSubscriptions.get(storeId)!.add(ws);
+            if (!this.storeSubscriptions.has(storeId)) {
+              this.storeSubscriptions.set(storeId, new Set());
+            }
+            const storeSet = this.storeSubscriptions.get(storeId);
+            if (storeSet) {
+              storeSet.add(ws);
+            }
             ws.send(JSON.stringify({ type: 'store_subscribed', storeId }));
             return;
           }
@@ -73,7 +83,7 @@ class RackRushWS {
           if (data.type === 'store_checkin' && data.storeId && data.action) {
             const storeId = Number(data.storeId);
             const action = String(data.action); // enter | leave
-            if (!['enter', 'leave'].includes(action)) {
+            if (action !== 'enter' && action !== 'leave') {
               ws.send(JSON.stringify({ type: 'store_checkin_error', message: 'action must be enter or leave' }));
               return;
             }
@@ -98,16 +108,25 @@ class RackRushWS {
             this.broadcastStoreOccupancy(storeId, next, max, action);
             return;
           }
+
+          // Ak prisiel neznamy typ spravy, vratime explicitnu chybu
+          ws.send(JSON.stringify({ type: 'ws_error', message: 'Unknown message type' }));
         } catch (e) {
           console.error('WS Message error:', e);
+          ws.send(JSON.stringify({ type: 'ws_error', message: 'Invalid WS message format' }));
         }
       });
 
       ws.on('close', () => {
         const userId = ws.userId;
         if (userId && this.clients.has(userId)) {
-          this.clients.get(userId)!.delete(ws);
-          if (this.clients.get(userId)!.size === 0) this.clients.delete(userId);
+          const set = this.clients.get(userId);
+          if (set) {
+            set.delete(ws);
+            if (set.size === 0) {
+              this.clients.delete(userId);
+            }
+          }
         }
 
         // Upratanie odberov predajni pri zatvoreni spojenia
@@ -135,15 +154,37 @@ class RackRushWS {
     });
   }
 
-  // Poslanie spravy konkretnemu userovi
-  sendToUser(userId: number | string, data: any) {
+  // Zisti, ci ma user aspon jedno aktivne WS spojenie
+  hasActiveConnection(userId: number | string): boolean {
     const userClients = this.clients.get(Number(userId));
+    if (!userClients || userClients.size === 0) {
+      return false;
+    }
+
+    for (const client of userClients) {
+      if (client.readyState === WebSocket.OPEN) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  // Poslanie spravy konkretnemu userovi
+  // Vracia pocet klientov, ktorym sa sprava realne poslala
+  sendToUser(userId: number | string, data: any): number {
+    const userClients = this.clients.get(Number(userId));
+    let sentCount = 0;
     if (userClients) {
       const msg = JSON.stringify(data);
       userClients.forEach(client => {
-        if (client.readyState === WebSocket.OPEN) client.send(msg);
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(msg);
+          sentCount++;
+        }
       });
     }
+    return sentCount;
   }
 
   // Jednoduchy broadcast: ak je userId, posielame len jemu, inak vsetkym

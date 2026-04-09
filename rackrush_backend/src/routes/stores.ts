@@ -4,7 +4,7 @@ import { StoreDTO, ErrorResponseDTO } from '../types';
 const router = require('express').Router();
 import pool from '../config/db';
 
-// Pomocna funkcia: PostgreSQL POINT sa casto vrati ako "(x,y)"
+// Pomocna funkcia: PostgreSQL POINT sa vrati ako "(x,y)"
 // x = longitude, y = latitude
 function parsePgPoint(pointValue: string | null): { longitude: number; latitude: number } | null {
   if (!pointValue || typeof pointValue !== 'string') return null;
@@ -19,7 +19,7 @@ function parsePgPoint(pointValue: string | null): { longitude: number; latitude:
   return { longitude, latitude };
 }
 
-// Jednoducha Haversine funkcia v km (lahsie vysvetlitelna ako komplexne SQL)
+// Jednoducha funkcia na vypocet vzdialenosti v km 
 function distanceInKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371;
   const toRad = (deg: number) => (deg * Math.PI) / 180;
@@ -90,16 +90,28 @@ router.get('/nearby', async (req: Request, res: Response) => {
     const result = await pool.query('SELECT * FROM stores');
     const maxDistanceKm = radiusMeters / 1000;
 
-    const nearbyStores = result.rows
-      .map((store) => {
-        const location = parsePgPoint(store.location);
-        if (!location) return null;
+    // Jednoduchy "for" styl:
+    // 1) prejdeme vsetky predajne
+    // 2) spocitame vzdialenost
+    // 3) ulozime len tie v rameci radiusu
+    const nearbyStores: any[] = [];
+    for (const store of result.rows) {
+      const location = parsePgPoint(store.location);
+      if (!location) {
+        continue;
+      }
 
-        const distance = distanceInKm(latNum, lngNum, location.latitude, location.longitude);
-        return { ...store, distance };
-      })
-      .filter((store) => store !== null && store.distance <= maxDistanceKm)
-      .sort((a, b) => a!.distance - b!.distance);
+      const distance = distanceInKm(latNum, lngNum, location.latitude, location.longitude);
+      if (distance <= maxDistanceKm) {
+        nearbyStores.push({
+          ...store,
+          distance,
+        });
+      }
+    }
+
+    // Zoradenie od najblizsej predajne
+    nearbyStores.sort((a, b) => a.distance - b.distance);
 
     res.json(nearbyStores as StoreDTO[]);
   } catch (err) {

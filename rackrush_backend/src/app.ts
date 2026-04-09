@@ -35,10 +35,6 @@ const swaggerOptions = {
         url: 'http://localhost:3000',
         description: 'Development Server',
       },
-      {
-        url: 'http://192.168.214.22',
-        description: 'viktor',
-      },
     ],
     components: {
       securitySchemes: {
@@ -56,6 +52,9 @@ const swaggerOptions = {
 
 const swaggerDocs = swaggerJsdoc(swaggerOptions);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
+app.get('/api-docs.json', (req: Request, res: Response) => {
+  res.json(swaggerDocs);
+});
 
 // Registracia route modulov
 import authRoutes from './routes/auth';
