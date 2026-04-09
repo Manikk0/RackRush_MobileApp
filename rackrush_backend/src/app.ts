@@ -16,12 +16,12 @@ declare global {
   }
 }
 
-// Middleware
+// Middleware vrstva
 app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-// Swagger Documentation Configuration
+// Nastavenie Swagger dokumentacie
 const swaggerOptions = {
   definition: {
     openapi: '3.0.0',
@@ -51,13 +51,13 @@ const swaggerOptions = {
     },
     security: [{ bearerAuth: [] }],
   },
-  apis: ['./src/routes/*.ts'], // Path to the API docs
+  apis: ['./src/routes/*.ts'], // Cesta k API komentarom
 };
 
 const swaggerDocs = swaggerJsdoc(swaggerOptions);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
-// Routes
+// Registracia route modulov
 import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
 import productRoutes from './routes/products';
@@ -73,6 +73,7 @@ import subRoutes from './routes/subscriptions';
 import pmRoutes from './routes/paymentMethods';
 import uploadRoutes from './routes/upload';
 import adminRoutes from './routes/admin';
+import notificationRoutes from './routes/notifications';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -89,8 +90,9 @@ app.use('/api/subscriptions', subRoutes);
 app.use('/api/payment-methods', pmRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/notifications', notificationRoutes);
 
-// Health check
+// Kontrola, ze API bezi
 app.get('/', (req: Request, res: Response) => res.json({ message: 'RackRush Backend API is running' }));
 
 export default app;

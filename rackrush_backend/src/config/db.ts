@@ -1,4 +1,4 @@
-// src/config/db.js
+// src/config/db.ts
 require('dotenv').config();
 import { Pool  } from 'pg';
 
@@ -11,7 +11,7 @@ const pool = new Pool({
 });
 
 pool.on('connect', () => {
-  // silently connected
+  // Pripojenie prebehlo bez chyby
 });
 
 pool.on('error', (err) => {

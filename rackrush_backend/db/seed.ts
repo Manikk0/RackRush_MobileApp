@@ -1,4 +1,4 @@
-// db/seed.ts – Populate database with initial supermarket data
+// db/seed.ts - Naplnenie databazy uvodnymi datami
 require('dotenv').config();
 import { Pool } from 'pg';
 import bcrypt from 'bcryptjs';
@@ -16,7 +16,7 @@ async function seed() {
   try {
     console.log('Seeding database with supermarket data...');
 
-    // Subscription plans - using updated schema matching model.png
+    // Predplatne plany
     await client.query(`
       INSERT INTO subscription_detail (name, features, price, billing_period) VALUES
         ('Premium Mesačne', 'Zľavy, Doprava zadarmo, Prioritná podpora', 5.99, 'monthly'),
@@ -24,7 +24,7 @@ async function seed() {
       ON CONFLICT DO NOTHING;
     `);
 
-    // Top Level Categories (from user image exactly)
+    // Hlavne kategorie
     await client.query(`
       INSERT INTO categories (id, name, parent_id) VALUES
         (1,  'Ovocie a zelenina',    NULL),
@@ -50,8 +50,8 @@ async function seed() {
       ON CONFLICT DO NOTHING;
     `);
 
-    // Products
-    // Using unit_type ENUM: ('piece', 'gram', 'kg', 'liter', 'pack')
+    // Produkty
+    // Pouzity ENUM unit_type: piece | gram | kg | liter | pack
     await client.query(`
       INSERT INTO products (category_id, name, weight, unit_type, description, price, adults_only, point_value) VALUES
         (13, 'Jablko Gala',            1,    'kg',   'Sladké a chrumkavé domáce jablká', 1.49, FALSE, 2),
@@ -74,7 +74,7 @@ async function seed() {
       ON CONFLICT DO NOTHING;
     `);
 
-    // Stores (updated string format point location using ST_PointFromText logically or standard postgres POINT)
+    // Predajne s POINT suradnicami
     await client.query(`
       INSERT INTO stores (name, address, phone_number, location, opening_hours, max_occupancy, live_occupancy) VALUES
         ('RackRush Market - Centrál', 'Metodova 6, 821 08 Bratislava', '+421 2 555 1111', POINT(17.1285, 48.1565), 'Po-So 07:00-21:00, Ne 08:00-20:00', 200, 50),
@@ -83,7 +83,7 @@ async function seed() {
       ON CONFLICT DO NOTHING;
     `);
 
-    // Reward catalog
+    // Katalog odmien
     await client.query(`
       INSERT INTO reward_catalog (title, description, reward_type, point_cost, adults_only) VALUES
         ('Zľava 5€ na nákup',        'Špeciálna zľava', 1, 500, FALSE),
@@ -94,7 +94,7 @@ async function seed() {
       ON CONFLICT DO NOTHING;
     `);
 
-    // Admin user 
+    // Admin ucet
     const hash = await bcrypt.hash('Admin1234!', 10);
     await client.query(`
       INSERT INTO users (full_name, email, password_hash, role)
@@ -102,7 +102,7 @@ async function seed() {
       ON CONFLICT (email) DO NOTHING;
     `, [hash]);
 
-    // Admin linked records
+    // Naviazane zaznamy pre admina
     const res = await client.query(`SELECT id FROM users WHERE email = 'admin@rackrush.sk'`);
     const adminId = res.rows[0]?.id;
     if (adminId) {

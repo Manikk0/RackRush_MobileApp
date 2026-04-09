@@ -1,8 +1,9 @@
 -- RackRush Database Schema
 -- Run with: npx ts-node db/migrate.ts
-
-DROP SCHEMA IF EXISTS public CASCADE;
-CREATE SCHEMA public;
+-- Poznamka:
+-- Schema uz NIE JE defaultne destruktivna.
+-- Ak potrebujes reset databazy, pouzi:
+-- RESET_DB=true npm run migrate
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- ENUMS
@@ -70,6 +71,20 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- USER SESSIONS (REFRESH TOKEN SPRAVA)
+-- ─────────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS user_sessions (
+  id                  SERIAL PRIMARY KEY,
+  user_id             INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  refresh_token_hash  VARCHAR(255) NOT NULL,
+  user_agent          VARCHAR(255),
+  ip_address          VARCHAR(100),
+  is_revoked          BOOLEAN DEFAULT FALSE,
+  created_at          TIMESTAMP DEFAULT NOW(),
+  expires_at          TIMESTAMP NOT NULL
+);
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- USER PREFERENCES
 -- ─────────────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS user_preferences (
@@ -110,6 +125,20 @@ CREATE TABLE IF NOT EXISTS user_notifications (
   news_email              BOOLEAN DEFAULT FALSE,
   feedback                BOOLEAN DEFAULT TRUE,
   invoice                 BOOLEAN DEFAULT TRUE
+);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- DEVICE TOKENS (PUSH NOTIFIKACIE)
+-- ─────────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS device_tokens (
+  id            SERIAL PRIMARY KEY,
+  user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  platform      VARCHAR(20) NOT NULL,
+  token         VARCHAR(512) NOT NULL,
+  is_active     BOOLEAN DEFAULT TRUE,
+  created_at    TIMESTAMP DEFAULT NOW(),
+  last_used_at  TIMESTAMP DEFAULT NOW(),
+  UNIQUE(user_id, token)
 );
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -156,7 +185,8 @@ CREATE TABLE IF NOT EXISTS payment_methods (
   card_last4     VARCHAR(4),
   card_brand     VARCHAR(20),
   is_active      BOOLEAN DEFAULT TRUE,
-  is_preferred   BOOLEAN DEFAULT FALSE
+  is_preferred   BOOLEAN DEFAULT FALSE,
+  mock_balance   DECIMAL(10,2) DEFAULT 100.00
 );
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -300,7 +330,10 @@ CREATE TABLE IF NOT EXISTS shopping_lists (
   id         SERIAL PRIMARY KEY,
   user_id    INTEGER REFERENCES users(id) ON DELETE CASCADE,
   name       VARCHAR(150) NOT NULL,
-  created_at TIMESTAMP DEFAULT NOW()
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+  deleted_at TIMESTAMP,
+  version    INTEGER DEFAULT 1
 );
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -310,7 +343,11 @@ CREATE TABLE IF NOT EXISTS shopping_list_items (
   id         SERIAL PRIMARY KEY,
   list_id    INTEGER REFERENCES shopping_lists(id) ON DELETE CASCADE,
   product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
-  is_checked BOOLEAN DEFAULT FALSE
+  is_checked BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+  deleted_at TIMESTAMP,
+  version    INTEGER DEFAULT 1
 );
 
 -- ─────────────────────────────────────────────────────────────────────────────

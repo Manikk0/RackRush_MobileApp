@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { ReceiptDTO, ErrorResponseDTO } from '../types';
-// src/routes/receipts.js
+// Route modul pre pokladnicne bloky
 const router = require('express').Router();
 import pool from '../config/db';
 import auth from '../middleware/auth';

@@ -1,12 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import { UserDTO, ProductDTO, StoreDTO, OrderDTO, ErrorResponseDTO } from '../types';
-// src/routes/admin.js
+// Route modul pre admin funkcie
 const router = require('express').Router();
 import pool from '../config/db';
 import auth from '../middleware/auth';
 import role from '../middleware/role';
+import { sendPushToUser } from '../services/pushService';
 
-// All routes here are admin only
+// Vsetky endpointy v tomto subore su iba pre admin rolu
 router.use(auth, role('admin'));
 
 /**
@@ -142,7 +143,7 @@ router.put('/products/:id', async (req: Request, res: Response) => {
 router.post('/stores', async (req: Request, res: Response) => {
   const { name, address, latitude, longitude, opening_hours, max_occupancy } = req.body;
   try {
-    // location is a POINT(lon, lat)
+    // V DB je location ulozena ako POINT(longitude, latitude)
     const result = await pool.query(
       'INSERT INTO stores (name, address, location, opening_hours, max_occupancy) VALUES ($1,$2,POINT($3,$4),$5,$6) RETURNING *',
       [name, address, longitude, latitude, opening_hours, max_occupancy || 100]
@@ -176,16 +177,26 @@ router.post('/stores', async (req: Request, res: Response) => {
  *       200: { description: Status updated and WS broadcast sent }
  */
 router.put('/orders/:id/status', async (req: Request, res: Response) => {
-  const { status } = req.body; // pending | preparing | ready | completed | cancelled
+  const { status } = req.body; // Povoleny tok: pending | preparing | ready | completed | cancelled
   try {
     const result = await pool.query('UPDATE orders SET status = $1 WHERE id = $2 RETURNING *', [status, req.params.id]);
     if (!result.rows.length) return res.status(404).json({ error: 'Order not found' });
     
-    // Notify via WS
+    // Poslanie realtime eventu cez WebSocket
     const order = result.rows[0];
     const io = req.app.get('wss');
     if (io) {
       io.broadcast({ type: 'order_status_update', orderId: order.id, status: order.status, userId: order.user_id });
+    }
+
+    // Server trigger push notifikacie pri zmene stavu objednavky
+    if (order.user_id) {
+      await sendPushToUser(Number(order.user_id), {
+        title: 'Order status updated',
+        body: `Your order #${order.id} is now ${order.status}`,
+        deepLink: `rackrush://orders/${order.id}`,
+        data: { type: 'order_status_update', orderId: String(order.id), status: String(order.status) },
+      });
     }
     
     res.json(order as OrderDTO);
@@ -217,11 +228,19 @@ router.post('/points', async (req: Request, res: Response) => {
   try {
     const result = await pool.query('UPDATE loyalty_cards SET current_points = current_points + $1 WHERE user_id = $2 RETURNING current_points', [points, user_id]);
     
-    // Notify via WS
+    // Poslanie realtime eventu cez WebSocket
     const io = req.app.get('wss');
     if (io) {
       io.broadcast({ type: 'points_updated', userId: user_id, currentPoints: result.rows[0].current_points, added: points });
     }
+
+    // Server trigger push notifikacie pri zmene bodov
+    await sendPushToUser(Number(user_id), {
+      title: 'RackPoints updated',
+      body: `You received ${points} points`,
+      deepLink: 'rackrush://loyalty-card',
+      data: { type: 'points_updated', added: String(points) },
+    });
 
     res.json({ message: 'Points added', current_points: result.rows[0].current_points });
   } catch (err) { res.status(500).json({ error: 'Server error' } as ErrorResponseDTO); }

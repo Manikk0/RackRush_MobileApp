@@ -1,4 +1,4 @@
-// server.js – Entry point
+// server.ts - hlavny vstup backendu
 require('dotenv').config();
 import http from 'http';
 import app from './src/app';
@@ -8,13 +8,13 @@ const PORT = parseInt(process.env.PORT as string) || 3000;
 
 const server = http.createServer(app);
 
-// Initialize WebSocket server
+// Inicializacia WebSocket servera
 const wsServer = new RackRushWS(server);
 
-// Share wsServer instance with the app (used in routes for notifications)
+// Spristupnenie WS instancie v route moduloch (napr. notifikacie)
 app.set('wss', wsServer);
 
-server.listen(PORT, '0.0.0.0', () => { // '0.0.0.0' explicitly listens on ALL network interfaces
+server.listen(PORT, '0.0.0.0', () => { // Pocuva na vsetkych sietovych rozhraniach
   console.log(`
   RackRush Backend running!
   ----------------------------

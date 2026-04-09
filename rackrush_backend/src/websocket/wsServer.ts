@@ -1,6 +1,8 @@
-// src/websocket/wsServer.ts
+// WebSocket vrstva pre realtime eventy
 import { WebSocketServer, WebSocket } from 'ws';
 import { IncomingMessage } from 'http';
+import jwt from 'jsonwebtoken';
+import pool from '../config/db';
 
 interface ExtendedWebSocket extends WebSocket {
   userId?: number;
@@ -9,23 +11,92 @@ interface ExtendedWebSocket extends WebSocket {
 class RackRushWS {
   public wss: WebSocketServer;
   public clients: Map<number, Set<ExtendedWebSocket>>;
+  public storeSubscriptions: Map<number, Set<ExtendedWebSocket>>;
 
   constructor(server: any) {
     this.wss = new WebSocketServer({ server, path: '/ws' });
-    this.clients = new Map(); // userId -> Set of matching WS connections
+    this.clients = new Map(); // userId -> otvorene WS spojenia konkretneho usera
+    this.storeSubscriptions = new Map(); // storeId -> WS spojenia ktore sleduju vytazenost
 
     this.wss.on('connection', (ws: ExtendedWebSocket, req: IncomingMessage) => {
       console.log('New WS connection');
       
-      ws.on('message', (message) => {
+      ws.on('message', async (message) => {
         try {
           const data = JSON.parse(message.toString());
-          if (data.type === 'auth' && data.userId) {
-            const userId = Number(data.userId);
+
+          // Bezpecna autentifikacia cez JWT token:
+          // klient posle { type: "auth", token: "..." }
+          // userId sa berie z tokenu, nie zo vstupu klienta
+          if (data.type === 'auth' && data.token) {
+            const decoded = jwt.verify(data.token, process.env.JWT_SECRET as string) as any;
+            const userId = Number(decoded?.id);
+            if (!userId) {
+              ws.send(JSON.stringify({ type: 'auth_error', message: 'Neplatny token payload' }));
+              return;
+            }
+
             if (!this.clients.has(userId)) this.clients.set(userId, new Set());
             this.clients.get(userId)!.add(ws);
             ws.userId = userId;
             ws.send(JSON.stringify({ type: 'auth_success' }));
+            return;
+          }
+
+          // Dalsie akcie uz vyzaduju autenticovaneho usera
+          if (!ws.userId) {
+            ws.send(JSON.stringify({ type: 'auth_error', message: 'Najprv sa autentifikuj tokenom' }));
+            return;
+          }
+
+          // Klient si zapne realtime odber vytazenosti konkretnej predajne
+          if (data.type === 'store_subscribe' && data.storeId) {
+            const storeId = Number(data.storeId);
+            if (!this.storeSubscriptions.has(storeId)) this.storeSubscriptions.set(storeId, new Set());
+            this.storeSubscriptions.get(storeId)!.add(ws);
+            ws.send(JSON.stringify({ type: 'store_subscribed', storeId }));
+            return;
+          }
+
+          // Klient si vypne realtime odber vytazenosti predajne
+          if (data.type === 'store_unsubscribe' && data.storeId) {
+            const storeId = Number(data.storeId);
+            if (this.storeSubscriptions.has(storeId)) {
+              this.storeSubscriptions.get(storeId)!.delete(ws);
+            }
+            ws.send(JSON.stringify({ type: 'store_unsubscribed', storeId }));
+            return;
+          }
+
+          // Obojsmerna interakcia:
+          // klient posle vstup/vystup z predajne a backend prepocita live_occupancy
+          if (data.type === 'store_checkin' && data.storeId && data.action) {
+            const storeId = Number(data.storeId);
+            const action = String(data.action); // enter | leave
+            if (!['enter', 'leave'].includes(action)) {
+              ws.send(JSON.stringify({ type: 'store_checkin_error', message: 'action must be enter or leave' }));
+              return;
+            }
+
+            const storeResult = await pool.query(
+              'SELECT id, live_occupancy, max_occupancy FROM stores WHERE id = $1',
+              [storeId]
+            );
+            if (!storeResult.rows.length) {
+              ws.send(JSON.stringify({ type: 'store_checkin_error', message: 'Store not found' }));
+              return;
+            }
+
+            const store = storeResult.rows[0];
+            const current = Number(store.live_occupancy || 0);
+            const max = Number(store.max_occupancy || 100);
+            let next = current;
+            if (action === 'enter') next = Math.min(max, current + 1);
+            if (action === 'leave') next = Math.max(0, current - 1);
+
+            await pool.query('UPDATE stores SET live_occupancy = $1 WHERE id = $2', [next, storeId]);
+            this.broadcastStoreOccupancy(storeId, next, max, action);
+            return;
           }
         } catch (e) {
           console.error('WS Message error:', e);
@@ -38,11 +109,33 @@ class RackRushWS {
           this.clients.get(userId)!.delete(ws);
           if (this.clients.get(userId)!.size === 0) this.clients.delete(userId);
         }
+
+        // Upratanie odberov predajni pri zatvoreni spojenia
+        this.storeSubscriptions.forEach((set, storeId) => {
+          set.delete(ws);
+          if (set.size === 0) this.storeSubscriptions.delete(storeId);
+        });
       });
     });
   }
 
-  // Send message to a specific user
+  // Broadcast vytazenosti predajne vsetkym odberatelom danej predajne
+  broadcastStoreOccupancy(storeId: number, liveOccupancy: number, maxOccupancy: number, action: string) {
+    const subscribers = this.storeSubscriptions.get(storeId);
+    if (!subscribers) return;
+    const payload = JSON.stringify({
+      type: 'store_occupancy_update',
+      storeId,
+      liveOccupancy,
+      maxOccupancy,
+      action,
+    });
+    subscribers.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) client.send(payload);
+    });
+  }
+
+  // Poslanie spravy konkretnemu userovi
   sendToUser(userId: number | string, data: any) {
     const userClients = this.clients.get(Number(userId));
     if (userClients) {
@@ -53,7 +146,7 @@ class RackRushWS {
     }
   }
 
-  // Simple broadcast based on userId property in message
+  // Jednoduchy broadcast: ak je userId, posielame len jemu, inak vsetkym
   broadcast(data: any) {
     if (data.userId) {
       this.sendToUser(data.userId, data);

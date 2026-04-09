@@ -152,6 +152,7 @@ export interface PaymentMethodDTO {
   card_last4: string | null;
   card_brand: string | null;
   is_preferred: boolean;
+  mock_balance?: string | number;
 }
 
 export interface SubscriptionDTO {

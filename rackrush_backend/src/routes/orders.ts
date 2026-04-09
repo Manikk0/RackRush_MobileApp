@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { OrderDTO, OrderItemDTO, ErrorResponseDTO } from '../types';
-// src/routes/orders.js
+// Route modul pre objednavky
 const router = require('express').Router();
 import pool from '../config/db';
 import auth from '../middleware/auth';
@@ -92,20 +92,21 @@ router.get('/:id', auth, async (req: Request, res: Response) => {
  *               point_cost: { type: integer, description: Points to use as discount }
  *               offer_id: { type: integer, description: User Activated Offer ID }
  *               payment_method: { type: string, enum: [cash, card, other] }
+ *               payment_method_id: { type: integer, description: "Optional payment method id for non-cash payment simulation" }
  *     responses:
  *       201: { description: Order created successfully }
  *       400: { description: Insufficient points or unavailable products }
  */
 router.post('/', auth, async (req: Request, res: Response) => {
-  const { store_id, items, in_store_purchase, point_cost, offer_id, payment_method } = req.body;
-  // items = [{ product_id, quantity }]
+  const { store_id, items, in_store_purchase, point_cost, offer_id, payment_method, payment_method_id } = req.body;
+  // Odcakavany format poloziek: [{ product_id, quantity }]
   if (!items || !items.length) return res.status(400).json({ error: 'items[] required' } as ErrorResponseDTO);
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    // Calculate totals
+    // 1) Spocitame cenu objednavky a pripravime data pre INSERT
     let total = 0;
     const enriched = [];
     for (const item of items) {
@@ -119,7 +120,7 @@ router.post('/', auth, async (req: Request, res: Response) => {
       enriched.push({ ...item, price_at_purchase: price, point_value: p.rows[0].point_value });
     }
 
-    // Deduct points if used
+    // 2) Ak user chce pouzit body, odpocitame ich
     const pointsUsed = point_cost || 0;
     if (pointsUsed > 0) {
       const lc = await client.query('SELECT current_points FROM loyalty_cards WHERE user_id = $1', [req.user.id]);
@@ -128,10 +129,39 @@ router.post('/', auth, async (req: Request, res: Response) => {
         return res.status(400).json({ error: 'Not enough RackPoints' } as ErrorResponseDTO);
       }
       await client.query('UPDATE loyalty_cards SET current_points = current_points - $1 WHERE user_id = $2', [pointsUsed, req.user.id]);
-      total = Math.max(0, total - pointsUsed * 0.01); // 1 point = 0.01 €
+      total = Math.max(0, total - pointsUsed * 0.01); // 1 bod = 0.01 EUR
     }
 
-    // Create order
+    // 3) Ak nejde o hotovost, simulujeme online platbu cez payment method
+    if ((payment_method || 'other') !== 'cash') {
+      const pmResult = payment_method_id
+        ? await client.query(
+            `SELECT * FROM payment_methods
+             WHERE id = $1 AND user_id = $2 AND is_active = TRUE`,
+            [payment_method_id, req.user.id]
+          )
+        : await client.query(
+            `SELECT * FROM payment_methods
+             WHERE user_id = $1 AND is_active = TRUE
+             ORDER BY is_preferred DESC, id DESC
+             LIMIT 1`,
+            [req.user.id]
+          );
+
+      if (!pmResult.rows.length) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'No active payment method for non-cash payment' } as ErrorResponseDTO);
+      }
+      const pm = pmResult.rows[0];
+      const balance = Number(pm.mock_balance || 0);
+      if (balance < total) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Insufficient funds on selected payment method' } as ErrorResponseDTO);
+      }
+      await client.query('UPDATE payment_methods SET mock_balance = mock_balance - $1 WHERE id = $2', [total, pm.id]);
+    }
+
+    // 4) Vytvorime hlavicku objednavky
     const order = await client.query(
       `INSERT INTO orders (user_id, store_id, total_price, in_store_purchase, status, payment_method)
        VALUES ($1,$2,$3,$4,'pending',$5) RETURNING *`,
@@ -139,7 +169,7 @@ router.post('/', auth, async (req: Request, res: Response) => {
     );
     const orderId = order.rows[0].id;
 
-    // Insert items
+    // 5) Vlozime polozky objednavky
     for (const item of enriched) {
       await client.query(
         `INSERT INTO order_items (order_id, product_id, quantity, price_at_purchase)
@@ -148,13 +178,13 @@ router.post('/', auth, async (req: Request, res: Response) => {
       );
     }
 
-    // Earn points (1 per euro)
+    // 6) Pripis bodov za objednavku (1 bod za 1 EUR)
     const pointsEarned = Math.floor(total);
     await client.query('UPDATE loyalty_cards SET current_points = current_points + $1 WHERE user_id = $2', [pointsEarned, req.user.id]);
 
-    // Mark offer as used if provided - Linked through reward_id
+    // 7) Ak bola pouzita aktivovana ponuka, oznacime ju ako "used"
     if (offer_id) {
-      // Check if offer belongs to user
+      // Kontrola, ci ponuka patri danemu userovi
       const checkOffer = await client.query(
         `SELECT uao.id FROM user_activated_offers uao 
          JOIN rewards r ON r.id = uao.reward_id 
@@ -168,7 +198,7 @@ router.post('/', auth, async (req: Request, res: Response) => {
       }
     }
 
-    // Create receipt
+    // 8) Vytvorime pokladnicny blok (raw JSON)
     await client.query(
       `INSERT INTO receipts (order_id, user_id, raw_content) VALUES ($1,$2,$3)`,
       [orderId, req.user.id, JSON.stringify({ order: order.rows[0], items: enriched })]
@@ -176,7 +206,7 @@ router.post('/', auth, async (req: Request, res: Response) => {
 
     await client.query('COMMIT');
 
-    // Notify via WebSocket
+    // 9) Posleme realtime event klientovi cez WebSocket
     const io = req.app.get('wss');
     if (io) {
       io.broadcast({ type: 'order_created', orderId, userId: req.user.id, pointsEarned });

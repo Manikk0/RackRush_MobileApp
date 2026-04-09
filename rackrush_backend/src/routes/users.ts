@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { UserDTO, UserPreferencesDTO, UserNotificationsDTO, ErrorResponseDTO } from '../types';
-// src/routes/users.js
+// Route modul pre pracu s profilom pouzivatela
 const router = require('express').Router();
 import bcrypt from 'bcryptjs';
 import pool from '../config/db';
@@ -122,9 +122,8 @@ router.put('/me/password', auth, async (req: Request, res: Response) => {
  */
 router.delete('/me', auth, async (req: Request, res: Response) => {
   try {
-    // In new schema, we don't have is_active on users. 
-    // We can either delete or just return success if we want purely schema-compliant code.
-    // Let's perform CASCADE delete as it's cleaner for educational/grocery app.
+    // V aktualnej schema users nema stlpec is_active.
+    // Preto pouzivame realne zmazanie usera a naviazane data sa zmazu cez ON DELETE CASCADE.
     await pool.query('DELETE FROM users WHERE id = $1', [req.user.id]);
     res.json({ message: 'Account deleted' });
   } catch (err) { res.status(500).json({ error: 'Server error' } as ErrorResponseDTO); }

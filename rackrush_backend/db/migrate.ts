@@ -1,4 +1,4 @@
-// db/migrate.js – Run this once to create all tables
+// db/migrate.ts - Spustenie SQL schemy
 require('dotenv').config();
 import fs from 'fs';
 import path from 'path';
@@ -13,9 +13,18 @@ const pool = new Pool({
 });
 
 async function migrate() {
-  const sql = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
+  let sql = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
   const client = await pool.connect();
   try {
+    // Bezpecny pristup:
+    // destruktivny reset pustame iba ked je explicitne povoleny
+    // priklad: RESET_DB=true npm run migrate
+    const shouldReset = process.env.RESET_DB === 'true';
+    if (shouldReset) {
+      sql = `DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; ${sql}`;
+      console.log('RESET_DB=true -> schema bude resetnuta');
+    }
+
     console.log('Running migrations...');
     await client.query(sql);
     console.log('Migrations completed successfully!');

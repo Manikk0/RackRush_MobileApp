@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { LoyaltyCardDTO, ErrorResponseDTO } from '../types';
-// src/routes/loyaltyCard.js
+// Route modul pre vernostnu kartu
 const router = require('express').Router();
 import pool from '../config/db';
 import auth from '../middleware/auth';

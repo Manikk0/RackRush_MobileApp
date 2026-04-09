@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { RewardDTO, RewardCatalogDTO, ErrorResponseDTO } from '../types';
-// src/routes/rewards.js
+// Route modul pre odmeny a ich aktivaciu
 const router = require('express').Router();
 import pool from '../config/db';
 import auth from '../middleware/auth';
@@ -89,26 +89,26 @@ router.post('/redeem', auth, async (req: Request, res: Response) => {
 
     const item = catalogItem.rows[0];
 
-    // Check if adults-only and role
+    // Kontrola vekoveho obmedzenia odmeny podla roly
     if (item.adults_only && !['senior','admin'].includes(req.user.role)) {
       await client.query('ROLLBACK');
       return res.status(403).json({ error: 'This reward is for adults only' } as ErrorResponseDTO);
     }
 
-    // Check points
+    // Kontrola bodov na vernostnej karte
     const lc = await client.query('SELECT current_points FROM loyalty_cards WHERE user_id = $1', [req.user.id]);
     if (!lc.rows.length || lc.rows[0].current_points < item.point_cost) {
       await client.query('ROLLBACK');
       return res.status(400).json({ error: 'Insufficient RackPoints' } as ErrorResponseDTO);
     }
 
-    // Deduct points
+    // Odpocitanie bodov
     await client.query('UPDATE loyalty_cards SET current_points = current_points - $1 WHERE user_id = $2', [item.point_cost, req.user.id]);
 
-    // Create reward (unique voucher)
+    // Vytvorenie odmeny s unikatnym kodom
     const uniqueCode = uuidv4();
     const expiryDate = new Date();
-    expiryDate.setMonth(expiryDate.getMonth() + 1); // 1 month expiry
+    expiryDate.setMonth(expiryDate.getMonth() + 1); // Platnost 1 mesiac
 
     const reward = await client.query(
       `INSERT INTO rewards (catalog_id, user_id, unique_code, expires_at) 

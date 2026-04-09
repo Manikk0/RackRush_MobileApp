@@ -1,9 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import { ProductDTO, ErrorResponseDTO } from '../types';
-// src/routes/products.js
+// Route modul pre produkty
 const router = require('express').Router();
 import pool from '../config/db';
 import auth from '../middleware/auth';
+import jwt from 'jsonwebtoken';
 
 /**
  * @openapi
@@ -26,7 +27,7 @@ import auth from '../middleware/auth';
  */
 router.get('/', auth, async (req: Request, res: Response) => {
   const { category_id, search, adults_only } = req.query;
-  const userRole = req.user.role; // 'junior', 'senior', or 'admin'
+  const userRole = req.user.role; // Ockavana rola: junior | senior | admin
 
   let query  = `SELECT p.*, c.name AS category_name
                 FROM products p
@@ -38,8 +39,9 @@ router.get('/', auth, async (req: Request, res: Response) => {
   if (category_id) { query += ` AND p.category_id = $${i++}`; vals.push(category_id); }
   if (search)      { query += ` AND LOWER(p.name) LIKE $${i++}`; vals.push(`%${(search as string).toLowerCase()}%`); }
   
-  // ROLE-BASED FILTERING
-  // Senior/Admin can see adult content if requested. Junior is always blocked.
+  // Filtrovanie podla roly:
+  // senior/admin moze vidiet adults_only produkty len ak si to vyziada
+  // junior ich nikdy nesmie vidiet
   if (userRole === 'junior' || (!adults_only || adults_only === 'false')) {
     query += ` AND p.adults_only = FALSE`;
   }
@@ -68,6 +70,20 @@ router.get('/', auth, async (req: Request, res: Response) => {
  */
 router.get('/:id', async (req: Request, res: Response) => {
   try {
+    // Ak je user prihlaseny a je junior, nech nedostane adults_only produkt
+    let role: string | null = null;
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET) as any;
+        role = decoded?.role || null;
+      } catch (e) {
+        // Ak je token neplatny, endpoint stale moze fungovat ako "public detail"
+        role = null;
+      }
+    }
+
     const result = await pool.query(
       `SELECT p.*, c.name AS category_name
        FROM products p
@@ -75,6 +91,11 @@ router.get('/:id', async (req: Request, res: Response) => {
        WHERE p.id = $1`, [req.params.id]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Product not found' } as ErrorResponseDTO);
+
+    if (role === 'junior' && result.rows[0].adults_only === true) {
+      return res.status(403).json({ error: 'Tento produkt je dostupny iba pre dospelych' } as ErrorResponseDTO);
+    }
+
     res.json(result.rows[0] as ProductDTO);
   } catch (err) { res.status(500).json({ error: 'Server error' } as ErrorResponseDTO); }
 });

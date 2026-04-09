@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { FavoriteDTO, ErrorResponseDTO } from '../types';
-// src/routes/favorites.js
+// Route modul pre oblubene produkty
 const router = require('express').Router();
 import pool from '../config/db';
 import auth from '../middleware/auth';

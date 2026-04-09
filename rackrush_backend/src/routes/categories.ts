@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { CategoryDTO, ErrorResponseDTO } from '../types';
-// src/routes/categories.js
+// Route modul pre kategorie produktov
 const router = require('express').Router();
 import pool from '../config/db';
 
@@ -16,7 +16,7 @@ import pool from '../config/db';
 router.get('/', async (req: Request, res: Response) => {
   try {
     const result = await pool.query('SELECT * FROM categories ORDER BY parent_id NULLS FIRST, name');
-    // Build tree
+    // Z plocheho zoznamu spravime strom kategorii
     const map  = {};
     const tree = [];
     result.rows.forEach(row => { map[row.id] = { ...row, children: [] }; });
