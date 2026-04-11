@@ -96,31 +96,42 @@ router.get('/:id', auth, async (req: Request, res: Response) => {
  *     responses:
  *       201: { description: Order created successfully }
  *       400: { description: Insufficient points or unavailable products }
+ *       403: { description: Age restricted product in order }
  */
 router.post('/', auth, async (req: Request, res: Response) => {
   const { store_id, items, in_store_purchase, point_cost, offer_id, payment_method, payment_method_id } = req.body;
-  // Odcakavany format poloziek: [{ product_id, quantity }]
+  // ocakavany format poloziek: [{ product_id, quantity }]
   if (!items || !items.length) return res.status(400).json({ error: 'items[] required' } as ErrorResponseDTO);
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    // 1) Spocitame cenu objednavky a pripravime data pre INSERT
+    // 1) nacitame produkty, cenu a overime adults_only (rovnaka logika ako pri rewards/redeem)
     let total = 0;
     const enriched = [];
+    const role = req.user?.role as string;
     for (const item of items) {
-      const p = await client.query('SELECT price, point_value FROM products WHERE id = $1 AND is_available = TRUE', [item.product_id]);
-      if (!p.rows.length) { 
-        await client.query('ROLLBACK'); 
-        return res.status(400).json({ error: `Product ${item.product_id} not found or unavailable` } as ErrorResponseDTO); 
+      const p = await client.query(
+        'SELECT price, point_value, adults_only FROM products WHERE id = $1 AND is_available = TRUE',
+        [item.product_id]
+      );
+      if (!p.rows.length) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Product ${item.product_id} not found or unavailable` } as ErrorResponseDTO);
       }
-      const price = parseFloat(p.rows[0].price);
-      total      += price * item.quantity;
-      enriched.push({ ...item, price_at_purchase: price, point_value: p.rows[0].point_value });
+      const row = p.rows[0];
+      // dospely tovar: iba senior alebo admin (junior a user s neznamym vekom nesmu)
+      if (row.adults_only === true && !['senior', 'admin'].includes(role)) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ error: 'Order contains age-restricted products' } as ErrorResponseDTO);
+      }
+      const price = parseFloat(row.price);
+      total += price * item.quantity;
+      enriched.push({ ...item, price_at_purchase: price, point_value: row.point_value });
     }
 
-    // 2) Ak user chce pouzit body, odpocitame ich
+    // 2) body ako zlava: odpocet z loyalty_cards a prepocet total (1 bod = 0.01 EUR)
     const pointsUsed = point_cost || 0;
     if (pointsUsed > 0) {
       const lc = await client.query('SELECT current_points FROM loyalty_cards WHERE user_id = $1', [req.user.id]);
@@ -132,7 +143,7 @@ router.post('/', auth, async (req: Request, res: Response) => {
       total = Math.max(0, total - pointsUsed * 0.01); // 1 bod = 0.01 EUR
     }
 
-    // 3) Ak nejde o hotovost, simulujeme online platbu cez payment method
+    // 3) hotovost neuberie mock_balance; karta/simulacia stiahne sumu z vybranej payment_methods
     if ((payment_method || 'other') !== 'cash') {
       const pmResult = payment_method_id
         ? await client.query(
@@ -206,7 +217,7 @@ router.post('/', auth, async (req: Request, res: Response) => {
 
     await client.query('COMMIT');
 
-    // 9) Posleme realtime event klientovi cez WebSocket
+    // 9) WS broadcast typu order_created (ak je wss pripojeny na app)
     const io = req.app.get('wss');
     if (io) {
       io.broadcast({ type: 'order_created', orderId, userId: req.user.id, pointsEarned });

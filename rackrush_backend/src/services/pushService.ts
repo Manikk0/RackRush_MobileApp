@@ -3,7 +3,7 @@ import pool from '../config/db';
 
 let firebaseReady = false;
 
-// Inicializacia Firebase Admin SDK (ak su dostupne credentials)
+// FCM cez firebase-admin; ak chyba konfiguracia, push sa neloguje ako chyba ale fallback do logu
 function initFirebaseIfPossible() {
   if (firebaseReady) return;
   try {
@@ -39,7 +39,7 @@ export async function sendPushToUser(userId: number, payload: PushPayload) {
     return { sent: 0, skipped: true, reason: 'No active device tokens' };
   }
 
-  // Ak nie je Firebase inicializovany, notifikaciu aspon zalogujeme
+  // bez firebase iba diagnostika (vyvoj bez service account)
   if (!firebaseReady) {
     console.log('Push fallback log:', { userId, payload, tokensCount: tokens.length });
     return { sent: 0, skipped: true, reason: 'Firebase not initialized' };

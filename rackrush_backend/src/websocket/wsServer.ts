@@ -1,4 +1,4 @@
-// WebSocket vrstva pre realtime eventy
+// WebSocket vrstva: real-time vytazenost predajni (subscribe + checkin) a broadcast udalosti pouzivatelom
 import { WebSocketServer, WebSocket } from 'ws';
 import { IncomingMessage } from 'http';
 import jwt from 'jsonwebtoken';
@@ -15,19 +15,19 @@ class RackRushWS {
 
   constructor(server: any) {
     this.wss = new WebSocketServer({ server, path: '/ws' });
-    this.clients = new Map(); // userId -> otvorene WS spojenia konkretneho usera
-    this.storeSubscriptions = new Map(); // storeId -> WS spojenia ktore sleduju vytazenost
+    // mapa: userId -> mnozina socketov (jeden user moze mat viac zariadeni karty)
+    this.clients = new Map();
+    // mapa: storeId -> kto dostane occupancy update pre danu predajnu
+    this.storeSubscriptions = new Map();
 
     this.wss.on('connection', (ws: ExtendedWebSocket, req: IncomingMessage) => {
       console.log('New WS connection');
-      
+
       ws.on('message', async (message) => {
         try {
           const data = JSON.parse(message.toString());
 
-          // Bezpecna autentifikacia cez JWT token:
-          // klient posle { type: "auth", token: "..." }
-          // userId sa berie z tokenu, nie zo vstupu klienta
+          // prvy krok musi byt auth: JWT overenie, userId nikdy neberieme z tela spravy (ochrana proti spoof)
           if (data.type === 'auth' && data.token) {
             const decoded = jwt.verify(data.token, process.env.JWT_SECRET as string) as any;
             const userId = Number(decoded && decoded.id);
@@ -48,7 +48,7 @@ class RackRushWS {
             return;
           }
 
-          // Dalsie akcie uz vyzaduju autenticovaneho usera
+          // po uspesnom auth ma ws.userId; dalsie typy sprav bez auth odmietneme
           if (!ws.userId) {
             ws.send(JSON.stringify({ type: 'auth_error', message: 'Najprv sa autentifikuj tokenom' }));
             return;
@@ -78,8 +78,7 @@ class RackRushWS {
             return;
           }
 
-          // Obojsmerna interakcia:
-          // klient posle vstup/vystup z predajne a backend prepocita live_occupancy
+          // simulacia vstupu/vystupu zakaznika: meni sa live_occupancy v DB a broadcast subscriberom
           if (data.type === 'store_checkin' && data.storeId && data.action) {
             const storeId = Number(data.storeId);
             const action = String(data.action); // enter | leave
@@ -129,7 +128,7 @@ class RackRushWS {
           }
         }
 
-        // Upratanie odberov predajni pri zatvoreni spojenia
+        // socket zmizol zo vsetkych store subscription mnozin
         this.storeSubscriptions.forEach((set, storeId) => {
           set.delete(ws);
           if (set.size === 0) this.storeSubscriptions.delete(storeId);
@@ -138,7 +137,7 @@ class RackRushWS {
     });
   }
 
-  // Broadcast vytazenosti predajne vsetkym odberatelom danej predajne
+  // posle aktualny pocet ludi v predajni vsetkym, co si dali store_subscribe
   broadcastStoreOccupancy(storeId: number, liveOccupancy: number, maxOccupancy: number, action: string) {
     const subscribers = this.storeSubscriptions.get(storeId);
     if (!subscribers) return;
@@ -170,8 +169,7 @@ class RackRushWS {
     return false;
   }
 
-  // Poslanie spravy konkretnemu userovi
-  // Vracia pocet klientov, ktorym sa sprava realne poslala
+  // jedna sprava na vsetky aktivne sockety daneho usera (vrati kolko ich bolo OPEN)
   sendToUser(userId: number | string, data: any): number {
     const userClients = this.clients.get(Number(userId));
     let sentCount = 0;
@@ -187,7 +185,7 @@ class RackRushWS {
     return sentCount;
   }
 
-  // Jednoduchy broadcast: ak je userId, posielame len jemu, inak vsetkym
+  // ak payload obsahuje userId, ide len nemu; inak na vsetkych pripojenych (pouzit opatrne)
   broadcast(data: any) {
     if (data.userId) {
       this.sendToUser(data.userId, data);

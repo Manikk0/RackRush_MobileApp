@@ -10,14 +10,14 @@ import nodemailer from 'nodemailer';
 import pool from '../config/db';
 import auth from '../middleware/auth';
 
-// Jednoduchsie ako one-liner: jasna funkcia pre access token
+// funkcia pre access token
 function signAccess(payload: any) {
   const secret = process.env.JWT_SECRET as string;
   const expiresIn = (process.env.JWT_EXPIRES_IN || '1h') as any;
   return jwt.sign(payload, secret, { expiresIn });
 }
 
-// Jednoduchsie ako one-liner: jasna funkcia pre refresh token
+// funkcia pre refresh token
 function signRefresh(payload: any) {
   const secret = process.env.JWT_REFRESH_SECRET as string;
   const expiresIn = (process.env.JWT_REFRESH_EXPIRES_IN || '7d') as any;

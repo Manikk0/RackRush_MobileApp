@@ -101,7 +101,6 @@ router.post('/buy', auth, async (req: Request, res: Response) => {
     }
     const paymentMethod = pmResult.rows[0];
 
-    // Jednoducha simulacia platby pre projekt:
     // ak je zostatok mensi ako cena planu, zakupenie zlyha
     const planPrice = Number(plan.price);
     const balance = Number(paymentMethod.mock_balance || 0);

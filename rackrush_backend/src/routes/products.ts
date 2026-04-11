@@ -6,6 +6,8 @@ import pool from '../config/db';
 import auth from '../middleware/auth';
 import jwt from 'jsonwebtoken';
 
+// zoznam produktov: junior nikdy nevidi adults_only; senior/admin vidi ak query adults_only=true
+
 /**
  * @openapi
  * /api/products:
@@ -38,10 +40,8 @@ router.get('/', auth, async (req: Request, res: Response) => {
 
   if (category_id) { query += ` AND p.category_id = $${i++}`; vals.push(category_id); }
   if (search)      { query += ` AND LOWER(p.name) LIKE $${i++}`; vals.push(`%${(search as string).toLowerCase()}%`); }
-  
-  // Filtrovanie podla roly:
-  // senior/admin moze vidiet adults_only produkty len ak si to vyziada
-  // junior ich nikdy nesmie vidiet
+
+  // user bez datum narodenia: pri zozname sa sprava ako senior (adults_only len ak explicitne v query); objednavku adults_only aj tak blokuje orders
   if (userRole === 'junior' || (!adults_only || adults_only === 'false')) {
     query += ` AND p.adults_only = FALSE`;
   }

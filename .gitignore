@@ -25,3 +25,5 @@ rackrush_backend/node_modules/
 rackrush_backend/.env
 rackrush_backend/dist/
 rackrush_backend/uploads/
+rackrush_backend/firebase-service-account.json
+rackrush_backend/.gitignore

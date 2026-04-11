@@ -5,6 +5,8 @@ const router = require('express').Router();
 import pool from '../config/db';
 import auth from '../middleware/auth';
 
+// nakupne zoznamy: soft-delete + version umoznuju offline sync a 409 pri konflikte na serveri
+
 /**
  * @openapi
  * /api/shopping-lists:
@@ -77,6 +79,7 @@ router.post('/', auth, async (req: Request, res: Response) => {
  *     responses:
  *       200: { description: Changed lists and items }
  */
+// inkrementalny tah zmien od casu updated_since (zahrnie aj zmazane cez deleted_at)
 router.get('/sync', auth, async (req: Request, res: Response) => {
   const updatedSince = req.query.updated_since as string;
   if (!updatedSince) return res.status(400).json({ error: 'updated_since required' } as ErrorResponseDTO);
@@ -170,7 +173,7 @@ router.get('/:id', auth, async (req: Request, res: Response) => {
 router.put('/:id', auth, async (req: Request, res: Response) => {
   const { name, expected_version } = req.body;
   try {
-    // Jednoducha kontrola konfliktov pre offline sync
+    // ak klient posle expected_version a nesedi s DB, vratime 409 namiesto ticheho prepisania
     if (expected_version !== undefined) {
       const current = await pool.query(
         'SELECT version FROM shopping_lists WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL',
@@ -316,6 +319,7 @@ router.post('/:id/items', auth, async (req: Request, res: Response) => {
 router.patch('/:id/items/:itemId', auth, async (req: Request, res: Response) => {
   const { is_checked, expected_version } = req.body;
   try {
+    // rovnaky optimistic lock ako pri rename zoznamu
     if (expected_version !== undefined) {
       const current = await pool.query(
         `SELECT sli.version
