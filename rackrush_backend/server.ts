@@ -14,7 +14,7 @@ const wsServer = new RackRushWS(server);
 // Spristupnenie WS instancie v route moduloch (napr. notifikacie)
 app.set('wss', wsServer);
 
-server.listen(PORT, '0.0.0.0', () => { // Pocuva na vsetkych sietovych rozhraniach
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`
   RackRush Backend running!
   ----------------------------

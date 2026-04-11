@@ -81,6 +81,18 @@ CREATE TABLE IF NOT EXISTS user_sessions (
 );
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- PASSWORD RESET TOKENS
+-- ─────────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+  id                SERIAL PRIMARY KEY,
+  user_id           INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash        VARCHAR(255) NOT NULL,
+  is_used           BOOLEAN DEFAULT FALSE,
+  created_at        TIMESTAMP DEFAULT NOW(),
+  expires_at        TIMESTAMP NOT NULL
+);
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- USER PREFERENCES
 -- ─────────────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS user_preferences (

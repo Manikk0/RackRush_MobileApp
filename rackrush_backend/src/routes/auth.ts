@@ -6,6 +6,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
+import nodemailer from 'nodemailer';
 import pool from '../config/db';
 import auth from '../middleware/auth';
 
@@ -26,6 +27,45 @@ function signRefresh(payload: any) {
 // Pomocna funkcia na hash refresh tokenu
 function hashRefreshToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+// Pomocna funkcia na hash reset tokenu
+function hashResetToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+// Jednoducha expiracia reset tokenu: 30 minut
+function getResetExpiryMs(): number {
+  return 30 * 60 * 1000;
+}
+
+// Poslanie reset emailu (ak nie je smtp nastavene, link zalogujeme)
+async function sendResetEmail(email: string, resetLink: string) {
+  const host = process.env.SMTP_HOST;
+  const port = Number(process.env.SMTP_PORT || 587);
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const from = process.env.MAIL_FROM || 'no-reply@rackrush.local';
+
+  // Ak nie je smtp nastavene, aspon vypiseme link do logu
+  if (!host || !user || !pass) {
+    console.warn('SMTP nie je nastavene, reset link iba v logu:', resetLink);
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
+
+  await transporter.sendMail({
+    from,
+    to: email,
+    subject: 'RackRush - reset hesla',
+    text: `Ahoj,\n\nklikni na tento link pre reset hesla:\n${resetLink}\n\nLink je platny 30 minut.\n`,
+  });
 }
 
 // Ziskanie expiracie refresh tokenu v ms
@@ -275,12 +315,132 @@ router.get('/sessions', auth, async (req: Request, res: Response) => {
   res.json(result.rows);
 });
 
-// Jednoducha verzia zabudnuteho hesla
+/**
+ * @openapi
+ * /api/auth/forgot-password:
+ *   post:
+ *     tags: [Authentication]
+ *     summary: Request password reset by email
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email]
+ *             properties:
+ *               email: { type: string }
+ *     responses:
+ *       200: { description: Reset link was processed }
+ */
 router.post('/forgot-password', async (req: Request, res: Response) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: 'email required' });
-  // V produkcii by sa tu posielal email s reset linkom
-  res.json({ message: 'If that email exists, a reset link has been sent.' });
+
+  try {
+    const userResult = await pool.query('SELECT id, email FROM users WHERE email = $1', [email]);
+
+    // Vzdy vratime rovnaku odpoved (aby sa nedalo zistit ci email existuje)
+    if (!userResult.rows.length) {
+      return res.json({ message: 'If that email exists, a reset link has been sent.' });
+    }
+
+    const user = userResult.rows[0];
+
+    // Zneplatnime stare nepouzite tokeny pre tohto usera
+    await pool.query(
+      'UPDATE password_reset_tokens SET is_used = TRUE WHERE user_id = $1 AND is_used = FALSE',
+      [user.id]
+    );
+
+    // Vygenerujeme reset token
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = hashResetToken(rawToken);
+    const expiresAt = new Date(Date.now() + getResetExpiryMs());
+
+    await pool.query(
+      `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+       VALUES ($1, $2, $3)`,
+      [user.id, tokenHash, expiresAt]
+    );
+
+    const baseUrl = process.env.APP_BASE_URL || 'http://localhost:3000';
+    const resetLink = `${baseUrl}/reset-password?token=${rawToken}`;
+
+    // Pokusime sa poslat email, inak aspon logneme link
+    await sendResetEmail(user.email, resetLink);
+
+    return res.json({ message: 'If that email exists, a reset link has been sent.' });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/**
+ * @openapi
+ * /api/auth/reset-password:
+ *   post:
+ *     tags: [Authentication]
+ *     summary: Reset password with token
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [token, new_password]
+ *             properties:
+ *               token: { type: string }
+ *               new_password: { type: string }
+ *     responses:
+ *       200: { description: Password reset successful }
+ *       400: { description: Missing fields }
+ *       403: { description: Invalid or expired token }
+ */
+router.post('/reset-password', async (req: Request, res: Response) => {
+  const { token, new_password } = req.body;
+  if (!token || !new_password) {
+    return res.status(400).json({ error: 'token and new_password required' });
+  }
+
+  try {
+    const tokenHash = hashResetToken(token);
+    const tokenResult = await pool.query(
+      `SELECT id, user_id, expires_at, is_used
+       FROM password_reset_tokens
+       WHERE token_hash = $1
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [tokenHash]
+    );
+
+    if (!tokenResult.rows.length) {
+      return res.status(403).json({ error: 'Invalid or expired reset token' });
+    }
+
+    const resetRow = tokenResult.rows[0];
+    if (resetRow.is_used) {
+      return res.status(403).json({ error: 'Invalid or expired reset token' });
+    }
+    if (new Date(resetRow.expires_at).getTime() < Date.now()) {
+      return res.status(403).json({ error: 'Invalid or expired reset token' });
+    }
+
+    const passwordHash = await bcrypt.hash(new_password, 10);
+    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, resetRow.user_id]);
+
+    // Pouzity token uz nepovolime znova
+    await pool.query('UPDATE password_reset_tokens SET is_used = TRUE WHERE id = $1', [resetRow.id]);
+
+    // Z bezpecnostneho dovodu odhlasime stare sessions
+    await pool.query('UPDATE user_sessions SET is_revoked = TRUE WHERE user_id = $1', [resetRow.user_id]);
+
+    return res.json({ message: 'Password reset successful' });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Server error' });
+  }
 });
 
 export default router;

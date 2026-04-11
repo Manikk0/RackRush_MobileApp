@@ -18,7 +18,6 @@ async function migrate() {
   try {
     // Bezpecny pristup:
     // destruktivny reset pustame iba ked je explicitne povoleny
-    // RESET_DB=true npm run migrate
     const shouldReset = process.env.RESET_DB === 'true';
     if (shouldReset) {
       sql = `DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; ${sql}`;
