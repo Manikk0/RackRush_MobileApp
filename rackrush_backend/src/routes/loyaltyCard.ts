@@ -15,6 +15,7 @@ import auth from '../middleware/auth';
  *     responses:
  *       200: { description: Loyalty card data }
  */
+// kartu + meno/email usera z joinu
 router.get('/', auth, async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
@@ -38,6 +39,7 @@ router.get('/', auth, async (req: Request, res: Response) => {
  *     responses:
  *       200: { description: QR content }
  */
+// data pre offline QR (bez celej karty)
 router.get('/qr', auth, async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
@@ -67,6 +69,7 @@ router.get('/qr', auth, async (req: Request, res: Response) => {
  *     responses:
  *       200: { description: Points added }
  */
+// manualny pripis bodov (demo / test)
 router.post('/points/add', auth, async (req: Request, res: Response) => {
   const { points } = req.body;
   if (!points || points <= 0) return res.status(400).json({ error: 'points must be > 0' } as ErrorResponseDTO);

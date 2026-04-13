@@ -1,4 +1,4 @@
-// server.ts - hlavny vstup backendu
+// server.ts - vstup: dotenv, HTTP server, WebSocket /ws, app.set('wss')
 require('dotenv').config();
 import http from 'http';
 import app from './src/app';

@@ -1,3 +1,4 @@
+// push: registracia device tokenov a odhlasenie (FCM/APNs cez pushService)
 import { Request, Response } from 'express';
 import { ErrorResponseDTO } from '../types';
 const router = require('express').Router();
@@ -17,6 +18,7 @@ const ALLOWED_PLATFORMS = ['android', 'ios'];
  *     responses:
  *       200: { description: List of devices }
  */
+// zoznam registrovanych zariadeni pre push
 router.get('/devices', auth, async (req: Request, res: Response) => {
   const result = await pool.query(
     `SELECT id, platform, token, is_active, created_at, last_used_at
@@ -48,6 +50,7 @@ router.get('/devices', auth, async (req: Request, res: Response) => {
  *     responses:
  *       200: { description: Device token saved }
  */
+// AI-GENERATED
 router.post('/devices/register', auth, async (req: Request, res: Response) => {
   const { platform, token } = req.body;
   if (!platform || !token) {

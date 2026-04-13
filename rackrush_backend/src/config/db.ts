@@ -1,4 +1,4 @@
-// src/config/db.ts
+// src/config/db.ts - jeden pg Pool zdielaju vsetky route moduly
 require('dotenv').config();
 import { Pool  } from 'pg';
 

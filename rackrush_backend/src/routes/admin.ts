@@ -20,6 +20,7 @@ router.use(auth, role('admin'));
  *     responses:
  *       200: { description: List of users }
  */
+// zakladne udaje vsetkych userov (bez hesla)
 router.get('/users', async (req: Request, res: Response) => {
   try {
     const result = await pool.query('SELECT id, full_name, email, role, created_at FROM users ORDER BY created_at DESC');
@@ -53,6 +54,7 @@ router.get('/users', async (req: Request, res: Response) => {
  *     responses:
  *       201: { description: Product created }
  */
+// vlozenie produktu (kategoria, cena, adults_only, ...)
 router.post('/products', async (req: Request, res: Response) => {
   const { category_id, name, price, description, point_value, adults_only, weight, unit_type } = req.body;
   try {
@@ -140,6 +142,7 @@ router.put('/products/:id', async (req: Request, res: Response) => {
  *     responses:
  *       201: { description: Store created }
  */
+// nova predajna: suradnice do PostgreSQL POINT(lon, lat)
 router.post('/stores', async (req: Request, res: Response) => {
   const { name, address, latitude, longitude, opening_hours, max_occupancy } = req.body;
   try {
@@ -176,6 +179,7 @@ router.post('/stores', async (req: Request, res: Response) => {
  *     responses:
  *       200: { description: Status updated and WS broadcast sent }
  */
+// AI-GENERATED
 router.put('/orders/:id/status', async (req: Request, res: Response) => {
   const { status } = req.body; // Povoleny tok: pending | preparing | ready | completed | cancelled
   try {
@@ -227,6 +231,7 @@ router.put('/orders/:id/status', async (req: Request, res: Response) => {
  *     responses:
  *       200: { description: Points awarded }
  */
+// AI-REFINED
 router.post('/points', async (req: Request, res: Response) => {
   const { user_id, points } = req.body;
   try {

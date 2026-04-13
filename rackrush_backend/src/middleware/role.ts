@@ -1,3 +1,4 @@
+// middleware: kontrola req.user.role oproti zoznamu povolenych roli
 import { Request, Response, NextFunction } from 'express';
 
 export default function requireRole(...roles: string[]) {

@@ -4,6 +4,7 @@ import pool from '../config/db';
 let firebaseReady = false;
 
 // FCM cez firebase-admin; ak chyba konfiguracia, push sa neloguje ako chyba ale fallback do logu
+// AI-GENERATED
 function initFirebaseIfPossible() {
   if (firebaseReady) return;
   try {
@@ -28,6 +29,7 @@ export interface PushPayload {
 }
 
 // Poslanie push notifikacie vsetkym aktivnym zariadeniam usera
+// AI-GENERATED
 export async function sendPushToUser(userId: number, payload: PushPayload) {
   const tokensResult = await pool.query(
     'SELECT token FROM device_tokens WHERE user_id = $1 AND is_active = TRUE',

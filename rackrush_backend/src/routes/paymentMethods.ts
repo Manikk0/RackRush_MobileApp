@@ -51,6 +51,7 @@ router.get('/', auth, async (req: Request, res: Response) => {
  *     responses:
  *       201: { description: Payment method added }
  */
+// AI-ASSISTED
 router.post('/', auth, async (req: Request, res: Response) => {
   const { type, card_last4, card_brand, is_preferred, initial_balance } = req.body;
   if (!type) return res.status(400).json({ error: 'type required' } as ErrorResponseDTO);
@@ -128,6 +129,7 @@ router.delete('/:id', auth, async (req: Request, res: Response) => {
  *     responses:
  *       200: { description: Balance topped up }
  */
+// AI-GENERATED
 router.post('/:id/topup', auth, async (req: Request, res: Response) => {
   const amount = Number(req.body?.amount);
   if (Number.isNaN(amount) || amount <= 0) {

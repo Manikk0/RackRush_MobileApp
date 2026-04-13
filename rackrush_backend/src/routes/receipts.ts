@@ -15,6 +15,7 @@ import auth from '../middleware/auth';
  *     responses:
  *       200: { description: List of receipts }
  */
+// pokladnicne bloky usera s joinom na objednavku a predajnu
 router.get('/', auth, async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
@@ -46,6 +47,7 @@ router.get('/', auth, async (req: Request, res: Response) => {
  *       200: { description: Receipt details }
  *       404: { description: Receipt not found }
  */
+// jeden blok + suma a stav objednavky
 router.get('/:id', auth, async (req: Request, res: Response) => {
   try {
     const result = await pool.query(

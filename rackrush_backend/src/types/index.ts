@@ -1,5 +1,5 @@
 // src/types/index.ts
-
+// AI-REFINED
 export interface UserDTO {
   id: number;
   full_name: string;

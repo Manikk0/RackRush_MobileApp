@@ -14,6 +14,7 @@ import auth from '../middleware/auth';
  *     responses:
  *       200: { description: List of subscription plans }
  */
+// verejny katalog planov (bez prihlasenia)
 router.get('/plans', async (req: Request, res: Response) => {
   try {
     const result = await pool.query('SELECT * FROM subscription_detail ORDER BY price');
@@ -34,6 +35,7 @@ router.get('/plans', async (req: Request, res: Response) => {
  *     responses:
  *       200: { description: Active subscription details }
  */
+// aktivne predplatne usera (join na detail planu)
 router.get('/my', auth, async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
@@ -73,6 +75,7 @@ router.get('/my', auth, async (req: Request, res: Response) => {
  *       400: { description: Insufficient payment balance or no payment method }
  *       404: { description: Plan not found }
  */
+// AI-GENERATED
 router.post('/buy', auth, async (req: Request, res: Response) => {
   const { plan_id, payment_method_id } = req.body;
   if (!plan_id) return res.status(400).json({ error: 'plan_id required' } as ErrorResponseDTO);

@@ -15,6 +15,7 @@ import auth from '../middleware/auth';
  *     responses:
  *       200: { description: List of favorite products }
  */
+// oblubene s udajmi produktu
 router.get('/', auth, async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
@@ -50,6 +51,7 @@ router.get('/', auth, async (req: Request, res: Response) => {
  *       201: { description: Added to favorites }
  *       200: { description: Already in favorites }
  */
+// AI-REFINED
 router.post('/', auth, async (req: Request, res: Response) => {
   const { product_id } = req.body;
   if (!product_id) return res.status(400).json({ error: 'product_id required' } as ErrorResponseDTO);
@@ -82,6 +84,7 @@ router.post('/', auth, async (req: Request, res: Response) => {
  *       200: { description: Removed from favorites }
  *       404: { description: Not in favorites }
  */
+// odstranenie jedneho produktu z oblubenych
 router.delete('/:productId', auth, async (req: Request, res: Response) => {
   try {
     const result = await pool.query('DELETE FROM favorites WHERE user_id = $1 AND product_id = $2 RETURNING id', [req.user.id, req.params.productId]);

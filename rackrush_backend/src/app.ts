@@ -1,3 +1,4 @@
+// Express aplikacia: CORS, JSON, static uploads, Swagger, mount /api/*
 import { Request, Response, NextFunction } from 'express';
 // src/app.js
 import express from 'express';

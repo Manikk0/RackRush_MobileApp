@@ -49,6 +49,7 @@ const upload = multer({
  *       200: { description: Image uploaded successfully, returns URL }
  *       400: { description: Invalid file or no file uploaded }
  */
+// AI-REFINED
 router.post('/image', auth, (req: Request, res: Response, next: NextFunction) => {
   upload.single('image')(req, res, (err: any) => {
     if (err instanceof multer.MulterError) return res.status(400).json({ error: err.message } as ErrorResponseDTO);

@@ -15,6 +15,7 @@ import auth from '../middleware/auth';
  *     responses:
  *       200: { description: List of orders }
  */
+// historia objednavok prihlaseneho usera
 router.get('/', auth, async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
@@ -45,6 +46,7 @@ router.get('/', auth, async (req: Request, res: Response) => {
  *       200: { description: Order details }
  *       404: { description: Order not found }
  */
+// jedna objednavka + polozky s nazvom produktu
 router.get('/:id', auth, async (req: Request, res: Response) => {
   try {
     const order = await pool.query(
@@ -98,6 +100,7 @@ router.get('/:id', auth, async (req: Request, res: Response) => {
  *       400: { description: Insufficient points or unavailable products }
  *       403: { description: Age restricted product in order }
  */
+// AI-GENERATED
 router.post('/', auth, async (req: Request, res: Response) => {
   const { store_id, items, in_store_purchase, point_cost, offer_id, payment_method, payment_method_id } = req.body;
   // ocakavany format poloziek: [{ product_id, quantity }]

@@ -17,6 +17,7 @@ import auth from '../middleware/auth';
  *     responses:
  *       200: { description: List of shopping lists }
  */
+// zoznam zoznamov usera kde deleted_at je NULL
 router.get('/', auth, async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
@@ -49,6 +50,7 @@ router.get('/', auth, async (req: Request, res: Response) => {
  *     responses:
  *       201: { description: List created }
  */
+// novy prazdny nakupny zoznam
 router.post('/', auth, async (req: Request, res: Response) => {
   const { name } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' } as ErrorResponseDTO);
@@ -80,6 +82,7 @@ router.post('/', auth, async (req: Request, res: Response) => {
  *       200: { description: Changed lists and items }
  */
 // inkrementalny tah zmien od casu updated_since (zahrnie aj zmazane cez deleted_at)
+// AI-GENERATED
 router.get('/sync', auth, async (req: Request, res: Response) => {
   const updatedSince = req.query.updated_since as string;
   if (!updatedSince) return res.status(400).json({ error: 'updated_since required' } as ErrorResponseDTO);
@@ -124,6 +127,7 @@ router.get('/sync', auth, async (req: Request, res: Response) => {
  *       200: { description: List details }
  *       404: { description: List not found }
  */
+// jeden zoznam + join produktov pre polozky
 router.get('/:id', auth, async (req: Request, res: Response) => {
   try {
     const list = await pool.query(
@@ -170,6 +174,7 @@ router.get('/:id', auth, async (req: Request, res: Response) => {
  *     responses:
  *       200: { description: List renamed }
  */
+// AI-REFINED
 router.put('/:id', auth, async (req: Request, res: Response) => {
   const { name, expected_version } = req.body;
   try {
@@ -215,6 +220,7 @@ router.put('/:id', auth, async (req: Request, res: Response) => {
  *     responses:
  *       200: { description: List deleted }
  */
+// AI-REFINED
 router.delete('/:id', auth, async (req: Request, res: Response) => {
   try {
     // Soft delete, aby klienti v offline sync dostali informaciu o zmazani
@@ -266,6 +272,7 @@ router.delete('/:id', auth, async (req: Request, res: Response) => {
  *     responses:
  *       201: { description: Item added }
  */
+// pridanie produktu do zoznamu (kontrola ze list patri userovi)
 router.post('/:id/items', auth, async (req: Request, res: Response) => {
   const { product_id } = req.body;
   if (!product_id) return res.status(400).json({ error: 'product_id required' } as ErrorResponseDTO);
@@ -316,6 +323,7 @@ router.post('/:id/items', auth, async (req: Request, res: Response) => {
  *     responses:
  *       200: { description: Item status updated }
  */
+// AI-GENERATED
 router.patch('/:id/items/:itemId', auth, async (req: Request, res: Response) => {
   const { is_checked, expected_version } = req.body;
   try {
@@ -369,6 +377,7 @@ router.patch('/:id/items/:itemId', auth, async (req: Request, res: Response) => 
  *     responses:
  *       200: { description: Item removed }
  */
+// soft delete jednej polozky v zozname
 router.delete('/:id/items/:itemId', auth, async (req: Request, res: Response) => {
   try {
     const result = await pool.query(

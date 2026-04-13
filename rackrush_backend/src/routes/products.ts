@@ -27,6 +27,7 @@ import jwt from 'jsonwebtoken';
  *     responses:
  *       200: { description: List of products }
  */
+// AI-ASSISTED
 router.get('/', auth, async (req: Request, res: Response) => {
   const { category_id, search, adults_only } = req.query;
   const userRole = req.user.role; // Ockavana rola: junior | senior | admin
@@ -68,6 +69,7 @@ router.get('/', auth, async (req: Request, res: Response) => {
  *       200: { description: Product details }
  *       404: { description: Product not found }
  */
+// AI-REFINED
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     // Ak je user prihlaseny a je junior, nech nedostane adults_only produkt

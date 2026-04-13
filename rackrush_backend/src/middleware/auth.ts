@@ -1,3 +1,4 @@
+// middleware: Authorization Bearer -> overenie JWT, vysledok do req.user
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 

@@ -7,7 +7,7 @@ import pool from '../config/db';
 interface ExtendedWebSocket extends WebSocket {
   userId?: number;
 }
-
+// AI-GENERATED
 class RackRushWS {
   public wss: WebSocketServer;
   public clients: Map<number, Set<ExtendedWebSocket>>;

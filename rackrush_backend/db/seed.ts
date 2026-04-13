@@ -10,7 +10,7 @@ const pool = new Pool({
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
 });
-
+// AI-GENERATED
 async function seed() {
   const client = await pool.connect();
   try {

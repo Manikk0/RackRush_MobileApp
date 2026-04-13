@@ -73,6 +73,7 @@ router.get('/my', auth, async (req: Request, res: Response) => {
  *       403: { description: Age restriction }
  *       404: { description: Reward not found }
  */
+// AI-GENERATED
 router.post('/redeem', auth, async (req: Request, res: Response) => {
   const { catalog_id } = req.body;
   if (!catalog_id) return res.status(400).json({ error: 'catalog_id required' } as ErrorResponseDTO);

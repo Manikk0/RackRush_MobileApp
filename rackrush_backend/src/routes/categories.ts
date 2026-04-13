@@ -13,6 +13,7 @@ import pool from '../config/db';
  *     responses:
  *       200: { description: List of categories with children }
  */
+// verejny GET: ploche riadky -> strom parent/children v pamati
 router.get('/', async (req: Request, res: Response) => {
   try {
     const result = await pool.query('SELECT * FROM categories ORDER BY parent_id NULLS FIRST, name');

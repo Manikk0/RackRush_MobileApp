@@ -96,6 +96,7 @@ router.put('/me', auth, async (req: Request, res: Response) => {
  *       200: { description: Password updated }
  *       401: { description: Incorrect current password }
  */
+// AI-REFINED
 router.put('/me/password', auth, async (req: Request, res: Response) => {
   const { current_password, new_password } = req.body;
   if (!current_password || !new_password) return res.status(400).json({ error: 'Both passwords required' } as ErrorResponseDTO);
@@ -172,6 +173,7 @@ router.get('/me/preferences', auth, async (req: Request, res: Response) => {
  *     responses:
  *       200: { description: Preferences updated }
  */
+// AI-REFINED
 router.put('/me/preferences', auth, async (req: Request, res: Response) => {
   const fields = ['language','theme_mode','high_contrast_mode','font_size','reading_out_loud',
                   'simple_navigation','region','data_privacy_consent','terms_of_service'];

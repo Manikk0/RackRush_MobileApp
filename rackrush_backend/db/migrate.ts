@@ -16,7 +16,6 @@ async function migrate() {
   let sql = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
   const client = await pool.connect();
   try {
-    // Bezpecny pristup:
     // destruktivny reset pustame iba ked je explicitne povoleny
     const shouldReset = process.env.RESET_DB === 'true';
     if (shouldReset) {

@@ -40,6 +40,7 @@ function getResetExpiryMs(): number {
 }
 
 // Poslanie reset emailu (ak nie je smtp nastavene, link zalogujeme)
+// AI-GENERATED
 async function sendResetEmail(email: string, resetLink: string) {
   const host = process.env.SMTP_HOST;
   const port = Number(process.env.SMTP_PORT || 587);
@@ -78,6 +79,7 @@ function getRefreshExpiryMs(): number {
 }
 
 // Vydanie access + refresh tokenu a ulozenie refresh session do DB
+// AI-ASSISTED
 async function issueTokens(req: Request, payload: any) {
   const access_token = signAccess(payload);
   const refresh_token = signRefresh(payload);
@@ -218,6 +220,7 @@ router.post('/login', async (req: Request, res: Response) => {
 });
 
 // Obnova access tokenu cez refresh token (s kontrolou DB session)
+// AI-ASSISTED
 router.post('/refresh', async (req: Request, res: Response) => {
   const { refresh_token } = req.body;
   if (!refresh_token) return res.status(400).json({ error: 'refresh_token required' });
@@ -333,6 +336,7 @@ router.get('/sessions', auth, async (req: Request, res: Response) => {
  *     responses:
  *       200: { description: Reset link was processed }
  */
+// AI-GENERATED
 router.post('/forgot-password', async (req: Request, res: Response) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: 'email required' });
@@ -398,6 +402,7 @@ router.post('/forgot-password', async (req: Request, res: Response) => {
  *       400: { description: Missing fields }
  *       403: { description: Invalid or expired token }
  */
+// AI-REFINED
 router.post('/reset-password', async (req: Request, res: Response) => {
   const { token, new_password } = req.body;
   if (!token || !new_password) {

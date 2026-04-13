@@ -19,7 +19,8 @@ function parsePgPoint(pointValue: string | null): { longitude: number; latitude:
   return { longitude, latitude };
 }
 
-// Jednoducha funkcia na vypocet vzdialenosti v km 
+// Funkcia na vypocet vzdialenosti v km
+// AI-ASSISTED
 function distanceInKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371;
   const toRad = (deg: number) => (deg * Math.PI) / 180;
@@ -41,6 +42,7 @@ function distanceInKm(lat1: number, lng1: number, lat2: number, lng2: number): n
  *     responses:
  *       200: { description: List of stores }
  */
+// vsetky predajne (bez filtra vzdialenosti)
 router.get('/', async (req: Request, res: Response) => {
   try {
     const result = await pool.query('SELECT * FROM stores ORDER BY name');
@@ -73,6 +75,7 @@ router.get('/', async (req: Request, res: Response) => {
  *       200: { description: List of nearby stores }
  *       400: { description: Missing coordinates }
  */
+// AI-ASSISTED
 router.get('/nearby', async (req: Request, res: Response) => {
   const { lat, lng, radius = 10000 } = req.query; // radius v metroch
   if (!lat || !lng) return res.status(400).json({ error: 'lat and lng required' });
@@ -85,15 +88,10 @@ router.get('/nearby', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'lat, lng a radius musia byt cisla' } as ErrorResponseDTO);
     }
 
-    // Namiesto komplikovaneho SQL to robime citatelne v JS:
     // 1) nacitame predajne, 2) vypocitame vzdialenost, 3) odfiltrujeme podla radiusu
     const result = await pool.query('SELECT * FROM stores');
     const maxDistanceKm = radiusMeters / 1000;
 
-    // Jednoduchy "for" styl:
-    // 1) prejdeme vsetky predajne
-    // 2) spocitame vzdialenost
-    // 3) ulozime len tie v rameci radiusu
     const nearbyStores: any[] = [];
     for (const store of result.rows) {
       const location = parsePgPoint(store.location);
@@ -135,6 +133,7 @@ router.get('/nearby', async (req: Request, res: Response) => {
  *       200: { description: Store details }
  *       404: { description: Store not found }
  */
+// detail predajne podla id
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const result = await pool.query('SELECT * FROM stores WHERE id = $1', [req.params.id]);
