@@ -81,7 +81,7 @@ router.post('/', auth, async (req: Request, res: Response) => {
  *     responses:
  *       200: { description: Changed lists and items }
  */
-// inkrementalny tah zmien od casu updated_since (zahrnie aj zmazane cez deleted_at)
+// postupnost zmien od casu updated_since (zahrnie aj zmazane cez deleted_at)
 // AI-GENERATED
 router.get('/sync', auth, async (req: Request, res: Response) => {
   const updatedSince = req.query.updated_since as string;
